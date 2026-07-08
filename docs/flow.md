@@ -16,13 +16,21 @@ a second opinion on our types without forking the source.
 
 ## How the interop actually works
 
-Flow cannot read `.ts`/`.tsx` files by default — it silently ignores them. Two
-config knobs turn Flow into a checker for our TypeScript sources:
+Flow ignores `.ts`/`.tsx` files by default. **One** config knob turns Flow into
+a checker for our TypeScript sources:
 
-1. **`module.file_ext`** — we add `.ts` and `.tsx` so Flow discovers and parses
-   the TypeScript sources as Flow (their syntaxes have converged).
-2. **`all=true`** — every file is checkable; TypeScript sources carry no `@flow`
-   pragma, so without this Flow would skip them.
+- **`module.file_ext`** — we add `.ts` and `.tsx` so Flow discovers and parses
+  the TypeScript sources as Flow (their syntaxes have converged).
+
+That's it. `.ts`/`.tsx` files are treated as **typed by default** once Flow
+looks at them, so there is **no `@flow` pragma and no `all=true`** required.
+
+> **Do not add `all=true`.** It is unnecessary for `.ts`/`.tsx` (they're already
+> typed), and it would additionally pull in our ~1,180 untyped `.js`/`.mjs`
+> build scripts and configs (none carry `@flow`), inflating the error count with
+> files we never intend Flow to check. Omitting it is what keeps the reported
+> numbers accurate to the actual `.ts`/`.tsx` surface — dropping it cut the
+> baseline by ~3.2k.
 
 Flow does **not** read `@types/*` packages or `.d.ts` files the way `tsc` does.
 Its equivalents are:
@@ -40,6 +48,17 @@ heroicons, next, …) with starter libdefs in [`flow-typed/`](../flow-typed).
 `node_modules` ships only the built `dist/` for `@astryxdesign/*` workspace
 packages (which Flow ignores), so `.flowconfig` uses `module.name_mapper` to
 resolve those imports back to the TypeScript **source**.
+
+> **Consuming `.d.ts` directly (experimental, not enabled).** Flow has an
+> in-progress feature, `experimental.typescript_library_definition_support=true`,
+> that lets it read real `.d.ts` files (including `@types/*`) instead of relying
+> on hand-written libdefs. It is a **work in progress** and, importantly, it also
+> **relaxes some safety checks for files whose paths end in `.ts`** (the feature
+> is oriented around consuming `.d.ts` declaration files). We deliberately leave
+> it **off** so that (a) our numbers reflect Flow's full strictness on real `.ts`
+> _source_, and (b) we don't depend on WIP behavior. On this codebase, enabling
+> it moved the total by <0.1% (our third-party surface already resolves via
+> libdefs + `name_mapper`), so there's no reason to take on the WIP risk yet.
 
 ## DOM / Node globals: environment libdefs
 
@@ -75,26 +94,76 @@ and must be avoided (or confined to `.d.ts`, which Flow ignores):
 - `namespace { … }` blocks — **parse error** (allowed only in ignored `.d.ts`).
 - `const enum` and constructor **parameter properties** (`constructor(public x)`)
   — reported as `[unsupported-syntax]`.
+- Non-null assertions (`x!`) — `[unsupported-syntax]` ([TS-only form][ts-only]).
+  ~330 occurrences today; each can degrade its module's inferred types (see the
+  cascade note below), so this is high-value to codemod to explicit narrowing.
 - `import x = require('…')` / `export = x` — CommonJS-style bindings.
 
 `type`, `interface`, generics, tuples, `keyof`, `as`, `as const`, `satisfies`,
 `enum`, `abstract`, `private`/`public`/`protected`, and decorators all parse.
 
-## Known interop limitation: namespace & default imports
+## Interop limitations (why the error count is what it is)
 
-The largest single source of current errors is a Flow/TypeScript interop gap,
-**not** a missing libdef:
+The current error total is dominated by a few **interop gaps and cascades**,
+not by a broad set of independent bugs. Understanding them is the key to the
+burn-down.
+
+### 1. Namespace & default imports bind as types in `.ts`/`.tsx`
+
+The single largest source of `type-as-value` errors — **not** a missing libdef:
 
 > When Flow checks a `.ts`/`.tsx` file, a **namespace import**
 > (`import * as React from 'react'`) or a **default import** binds as a _type_.
 > Using it as a value — `React.useState(...)`, `stylex.create(...)` — then
 > reports `[type-as-value]`.
 
-**Named imports work** (`import {useState} from 'react'`). Astryx imports both
-React and stylex as namespaces pervasively, so this accounts for the bulk of the
-`type-as-value` errors. Closing it requires a codemod from namespace to named
-imports (or a Flow enhancement), tracked as follow-up — deliberately **out of
-scope** for this harness PR.
+**Named imports work** (`import {useState} from 'react'`); the same
+`import * as` in a `.js` file also works — it is specific to Flow's handling of
+the `.ts`/`.tsx` extension. Astryx imports both React and stylex as namespaces
+pervasively, so this accounts for the bulk of `type-as-value`. Closing it needs
+a namespace→named import codemod (or a Flow enhancement).
+
+### 2. Exports must be annotated (`signature-verification-failure`)
+
+Flow [requires annotations at module boundaries][annot-boundaries] — it extracts
+a typed interface from each module's exports _without_ analyzing the body, so an
+export whose type is only inferred (e.g. `export const x = defineVars({...})`)
+errors. This is by design, not a bug. It also means fix #1 is a **two-parter**:
+switching `import * as stylex` → `import {defineVars}` clears the in-module
+`type-as-value`, but the export still needs an explicit annotation
+(`export const spacingVars: {readonly [string]: string} = defineVars({...})`)
+or consumers stay broken.
+
+### 3. The cascade into `incompatible-type`
+
+Adding real DOM types (the env libdefs) surfaced a large `incompatible-type`
+bucket that is mostly a **downstream symptom**, not real bugs. The `jsx`
+environment libdef types JSX via a `$JSXIntrinsics` map with a `[string]`
+catch-all. When a component module's export type is degraded by #1 or a non-null
+`!` (#syntax), Flow falls back to **DOM-intrinsic string-attribute typing** for
+that component — so `<Section padding={6}>` reports "number incompatible with
+string". Fixing #1 and the `!` assertions collapses much of `incompatible-type`
+alongside `type-as-value`.
+
+### Proven leverage
+
+Applying #1 + #2 to a **single file** (`packages/core/src/theme/tokens.stylex.ts`,
+imported everywhere) removed **~3,700 errors** — every `colorVars` / `spacingVars`
+/ `typeScaleVars` / `radiusVars` `type-as-value` dropped to zero. The pattern is
+mechanical and codemod-able.
+
+### Burn-down order
+
+1. **Non-null `!` → explicit narrowing** (~330 sites; stops type degradation).
+2. **Namespace→named import + annotate the touched exports** (collapses
+   `type-as-value` _and_ the downstream `incompatible-type` cascade).
+3. **`$PropertyType<T,K>` → `T[K]` indexed access** — [removed in Flow 0.266][modern];
+   plus a small SVG-element libdef (`SVGSVGElement`, … — not shipped in any
+   flow-typed env) — clears the `cannot-resolve-name` tail.
+
+[ts-only]: https://flow.org/en/docs/flow-vs-typescript/#toc-ts-only-syntax
+[annot-boundaries]: https://flow.org/en/docs/flow-vs-typescript/#toc-annotations-boundaries
+[modern]: https://flow.org/en/docs/modernizing-legacy-syntax/
 
 ## Running Flow
 

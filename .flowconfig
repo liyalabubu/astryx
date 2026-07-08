@@ -25,6 +25,13 @@ all=off
 
 [options]
 ; --- TypeScript interop: let Flow parse the .ts/.tsx sources directly ---
+; Adding .ts/.tsx to module.file_ext is all Flow needs to discover and check
+; our TypeScript sources — they are treated as typed by default, so there is
+; NO @flow pragma and NO `all=true` required. Do not add `all=true`: it would
+; additionally pull in our ~1,180 untyped .js/.mjs build scripts and configs
+; (none carry @flow), inflating the error count with files we don't intend to
+; check. Omitting it is what keeps the reported numbers accurate to the .ts/.tsx
+; surface.
 module.file_ext=.js
 module.file_ext=.jsx
 module.file_ext=.mjs
@@ -32,9 +39,6 @@ module.file_ext=.cjs
 module.file_ext=.json
 module.file_ext=.ts
 module.file_ext=.tsx
-
-; Every TS file is checkable; TS sources carry no @flow pragma.
-all=true
 
 ; React 19 automatic runtime (mirrors tsconfig "jsx": "react-jsx").
 react.runtime=automatic
