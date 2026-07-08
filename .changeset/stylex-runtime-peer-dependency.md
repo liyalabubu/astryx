@@ -2,6 +2,6 @@
 '@astryxdesign/core': patch
 ---
 
-[chore] Move `@stylexjs/stylex` from `dependencies` to a required `peerDependency` (`^0.18.3`). A consumer who authors their own StyleX now shares a single runtime with astryx — resolution dedupes to their own install in both browser and Node — instead of silently getting a second copy on version drift. An incompatible StyleX version is now flagged at install (npm errors, pnpm/yarn warn) instead of resolving silently. Consumers who don't author StyleX are unaffected: the runtime is still required to render astryx components and is auto-installed by npm 7+ and pnpm.
+[chore] Declare `@stylexjs/stylex` in both `dependencies` and `peerDependencies` (`^0.18.3`). The `dependencies` entry guarantees the StyleX runtime is present for every consumer — including Yarn (Yarn 1 and Yarn Berry do not auto-install peer dependencies) — so a consumer who doesn't author StyleX never has to install or import it; the runtime is required to render astryx components. The `peerDependencies` entry is the version-compatibility guardrail (flagged at install by Yarn/pnpm) and lets a StyleX-authoring consumer dedupe to a single shared runtime with their own app, in both browser and Node.
 
 @imdreamrunner
