@@ -1,0 +1,1 @@
+import{D as o}from"./_data-BSKBgWj3.js";function r(t){return typeof t=="string"&&t.trim().length>0}function i(t){return r(t._resolvedColor)?t._resolvedColor:o}function l(t,n){return r(n)?n:i(t)}function a(t,n,s,f){if(typeof n=="function")try{const e=n(s,f);if(r(e))return e}catch{}else if(r(n))return n;return i(t)}export{a as p,l as s};
