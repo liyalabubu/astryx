@@ -22,7 +22,14 @@
  * A hidden <button> or <a> inside the card provides the accessible role,
  * label, and focus ring — the card surface itself has no role/tabIndex.
  * This gives screen readers a real interactive element to announce while
- * keeping the visual hover/active overlay on the full card.
+ * the whole card tints on hover/active.
+ *
+ * Hover/active feedback tints the card's real background per variant rather
+ * than painting a pseudo-element overlay. The tint covers the full border
+ * box (including the 1px border edge), so tinted variants no longer show a
+ * faint untinted ring on hover. The tint mixes each variant's background
+ * with `--color-tint-hover` (black in light mode, white in dark mode), the
+ * same idiom used by other interactive components.
  *
  * For static display, use Card.
  * For toggle selection, use SelectableCard.
@@ -52,36 +59,14 @@ const styles = stylex.create({
     textDecoration: 'none',
     color: 'inherit',
     outlineOffset: '2px',
+    transitionProperty: 'background-color',
+    transitionDuration: durationVars['--duration-fast'],
+    transitionTimingFunction: easeVars['--ease-standard'],
   },
   focusWithin: {
     ':has(:focus-visible)': {
       outline: `2px solid ${colorVars['--color-accent']}`,
       outlineOffset: '2px',
-    },
-  },
-  // Hover overlay — guarded by @media (hover: hover) so touch devices
-  // don't show a stuck hover state. Active/pressed state works everywhere.
-  overlay: {
-    '::after': {
-      content: '""',
-      position: 'absolute',
-      inset: 0,
-      borderRadius: 'inherit',
-      pointerEvents: 'none',
-      transitionProperty: 'background-color',
-      transitionDuration: durationVars['--duration-fast'],
-      transitionTimingFunction: easeVars['--ease-standard'],
-      backgroundColor: 'transparent',
-    },
-    ':active::after': {
-      backgroundColor: 'color-mix(in srgb, currentColor 10%, transparent)',
-    },
-  },
-  hoverOnPointer: {
-    '@media (hover: hover)': {
-      ':hover::after': {
-        backgroundColor: 'color-mix(in srgb, currentColor 5%, transparent)',
-      },
     },
   },
   disabled: {
@@ -98,6 +83,133 @@ const styles = stylex.create({
     clip: 'rect(0, 0, 0, 0)',
     whiteSpace: 'nowrap',
     borderWidth: 0,
+  },
+});
+
+// Per-variant hover/active tint. Tinting the card's real background (rather
+// than an overlay) keeps the full border box tinted — including the 1px
+// border edge — so tinted variants show no faint untinted ring on hover.
+// The tint darkens in light mode and lightens in dark mode via
+// `--color-tint-hover` (light-dark(black, white)). Hover is guarded by
+// `@media (hover: hover)` so touch devices don't get a stuck hover state;
+// active/pressed feedback works everywhere.
+const variantHoverStyles = stylex.create({
+  default: {
+    backgroundColor: {
+      default: colorVars['--color-background-card'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-card']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-card']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  transparent: {
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, transparent, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, transparent, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  muted: {
+    backgroundColor: {
+      default: colorVars['--color-background-muted'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-muted']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-muted']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  blue: {
+    backgroundColor: {
+      default: colorVars['--color-background-blue'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-blue']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-blue']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  cyan: {
+    backgroundColor: {
+      default: colorVars['--color-background-cyan'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-cyan']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-cyan']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  gray: {
+    backgroundColor: {
+      default: colorVars['--color-background-gray'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-gray']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-gray']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  green: {
+    backgroundColor: {
+      default: colorVars['--color-background-green'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-green']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-green']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  orange: {
+    backgroundColor: {
+      default: colorVars['--color-background-orange'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-orange']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-orange']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  pink: {
+    backgroundColor: {
+      default: colorVars['--color-background-pink'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-pink']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-pink']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  purple: {
+    backgroundColor: {
+      default: colorVars['--color-background-purple'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-purple']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-purple']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  red: {
+    backgroundColor: {
+      default: colorVars['--color-background-red'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-red']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-red']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  teal: {
+    backgroundColor: {
+      default: colorVars['--color-background-teal'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-teal']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-teal']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
+  },
+  yellow: {
+    backgroundColor: {
+      default: colorVars['--color-background-yellow'],
+      ':hover': {
+        '@media (hover: hover)': `color-mix(in srgb, ${colorVars['--color-background-yellow']}, ${colorVars['--color-tint-hover']} 5%)`,
+      },
+      ':active': `color-mix(in srgb, ${colorVars['--color-background-yellow']}, ${colorVars['--color-tint-hover']} 10%)`,
+    },
   },
 });
 
@@ -264,8 +376,7 @@ export function ClickableCard({
         [
           styles.interactive,
           styles.focusWithin,
-          !isDisabled && styles.overlay,
-          !isDisabled && styles.hoverOnPointer,
+          !isDisabled && variantHoverStyles[variant],
           isDisabled && styles.disabled,
           xstyleProp,
         ] as unknown as StyleXStyles
